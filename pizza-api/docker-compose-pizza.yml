@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  web:
+    image: 'node:18-alpine'
+    restart: always
+    container_name: 'pizza-api'
+    ports:
+      - '3000:3000'
+    volumes:
+      - '.:/src'
+    working_dir: /src
+    command: sh -c "npm set strict-ssl false && npm ci && npm run start"
+    environment:
+      NODE_ENV: development
+      DEBUG: nodejs-docker-express:*

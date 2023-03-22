@@ -1,0 +1,126 @@
+---
+- name: Get Seal status
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/seal-status"
+    method: "GET"
+  register: r_hv_seal_st
+- name: Print Seal status
+  debug:
+    msg: "Vault server is sealed: {{r_hv_seal_st.json.sealed}}"
+- name: Load secrets
+  slurp:
+    src: "../.init_tokens"
+  register: r_init_data
+- name: Decode content
+  set_fact:
+    data_decoded: "{{r_init_data['content']|b64decode}}"
+- block:
+    - name: Reset any previous Unseal process
+      uri:
+        url: "{{vault_fqdn}}/v1/sys/unseal"
+        method: "PUT"
+        body_format: json
+        body:
+          reset: true
+    - name: Unseal Vault
+      uri:
+        url: "{{vault_fqdn}}/v1/sys/unseal"
+        method: "PUT"
+        body_format: json
+        body:
+          key: "{{item}}"
+      loop: "{{data_decoded['keys']}}"
+      loop_control:
+        label: "hidden_key"
+        extended: yes
+      register: r_unseal
+      when: ansible_loop.index < 4
+  when: r_hv_seal_st.json.sealed|bool == true
+- name: Get Audit
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/audit"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "GET"
+  register: r_hv_audits
+- name: Enable Audit
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/audit/file"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "PUT"
+    body_format: json
+    status_code: 204
+    body:
+      type: "file"
+      options:
+        file_path: "/vault/logs/audit.log"
+  when: r_hv_audits.json['file/'] is not defined
+- name: Get Auths
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/auth"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "GET"
+  register: r_hv_auths
+- name: Enable JWT auth method
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/auth/jwt"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "PUT"
+    body_format: json
+    status_code: 204
+    body:
+      type: "jwt"
+      description: "JWT for GitLab"
+      config:
+        default_lease_ttl: 1800
+        max_lease_ttl: 86400
+  when: r_hv_auths.json['jwt/'] is not defined
+# TODO: Add check if GL is up
+# TODO: Replace gitlab.local with env vars
+- name: Configure JWT auth
+  uri:
+    url: "{{vault_fqdn}}/v1/auth/jwt/config"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "POST"
+    body_format: json
+    status_code: 204
+    body:
+      jwks_url: "http://noc-gitlab-ce/-/jwks"
+      bound_issuer: "http://localhost"
+- name: Register GitLab Read Only Role in JWT Auth Method
+  uri:
+    url: "{{vault_fqdn}}/v1/auth/jwt/role/gitlab-vault-readonly"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "POST"
+    body_format: json
+    status_code: 204
+    body:
+      name: "gitlab-vault-readonly"
+      role_type: "jwt"
+      token_explicit_max_ttl: 60
+      user_claim: "user_email"
+      bound_claims: { "ref": "main", "ref_type": "branch" }
+      policies: ["gitlab-vault-readonly"]
+      token_policies: ["gitlab-vault-readonly"]
+- name: Load gitlab-vault-policy
+  slurp:
+    src: "files/gitlab-vault-policy.hcl"
+  register: r_policy
+- name: Here is your policy value
+  debug: var=r_policy['content']|b64decode
+- name: Create gitlab-vault-readonly ACL Policy
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/policies/acl/gitlab-vault-readonly"
+    headers:
+      X-Vault-Token: "{{data_decoded['root_token']}}"
+    method: "POST"
+    body_format: json
+    status_code: 204
+    body:
+      name: "gitlab-vault-readonly"
+      policy: "{{r_policy['content']}}"

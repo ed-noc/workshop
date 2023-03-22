@@ -1,0 +1,7 @@
+gitlab/*
+!*.gitkeep
+.env
+.env*bak
+*ca.crt
+drafts/*
+.DS_Store

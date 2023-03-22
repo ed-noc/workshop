@@ -1,0 +1,12 @@
+{
+    "role_type": "jwt",
+    "policies": [
+        "gitlab-vault-readonly"
+    ],
+    "token_explicit_max_ttl": 60,
+    "user_claim": "user_email",
+    "bound_claims": {
+        "ref": "main",
+        "ref_type": "branch"
+    }
+}

@@ -1,0 +1,31 @@
+---
+- name: Verify that Vault is responding
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/init"
+  until: r_confget.status == 200
+  retries: 10
+  delay: 10
+  register: r_confget
+- name: check if its not already initialized
+  uri:
+    url: "{{vault_fqdn}}/v1/sys/init"
+    method: "GET"
+  register: r_hv_init
+- block:
+    - name: Initialize Vault
+      uri:
+        url: "{{vault_fqdn}}/v1/sys/init"
+        method: "PUT"
+        body_format: json
+        body:
+          secret_shares: 5
+          secret_threshold: 3
+      register: r_hv_init_cr
+    - name: Here are your init values
+      debug: var=r_hv_init_cr.json
+    - name: Store init values on system
+      template:
+        src: templates/init_tokens.j2
+        dest: "../.init_tokens"
+        mode: "0400"
+  when: r_hv_init.json.initialized|bool == false

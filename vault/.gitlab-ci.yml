@@ -1,0 +1,24 @@
+variables:
+  VAULT_ADDR: http://vault:8200
+  VAULT_SECRET_PATH: gitlab/project_1
+  VAULT_ROLE: gitlab-vault-readonly
+
+stages:
+  - get_secrets
+
+vault secrets:
+  stage: get_secrets
+  image: alpine:latest
+  script:
+    ##### Print attributes about job #####
+    - echo $CI_COMMIT_REF_NAME
+    - echo $CI_COMMIT_REF_PROTECTED
+    ##### Install CURL #####
+    - sed -i 's/https/http/g' /etc/apk/repositories
+    - apk add --allow-untrusted -q curl jq vault
+    ##### Obtain Vault token #####
+    - export VAULT_TOKEN="$(vault write -field=token auth/jwt/login role=${VAULT_ROLE} jwt=$CI_JOB_JWT_V2)"
+    - echo $VAULT_TOKEN
+    ##### Obtain Vault secret #####
+    - export EVENT="$(vault kv get -field=event secrets/gitlab/project_1)"
+    - echo $EVENT

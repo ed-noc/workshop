@@ -1,0 +1,4 @@
+vault/data
+vault/policies
+vault/logs
+.init_tokens

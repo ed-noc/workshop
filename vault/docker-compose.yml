@@ -1,0 +1,29 @@
+version: '3.9'
+services:
+  vault:
+    image: hashicorp/vault:1.11.4
+    restart: always
+    container_name: noc-vault
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+      - VAULT_API_ADDR=http://0.0.0.0:8200
+      - VAULT_ADDRESS=http://0.0.0.0:8200
+    volumes:
+      - ./vault/config:/vault/config
+      - ./vault/policies:/vault/policies
+      - ./vault/data:/vault/data
+      - ./vault/logs:/vault/logs
+    ports:
+      - 8200:8200
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=/vault/config/vault.json
+    networks:
+      - vault
+      - toolchain
+
+networks:
+  vault:
+    name: vault-network
+  toolchain:
+    name: toolchain-network

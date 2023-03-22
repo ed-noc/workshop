@@ -1,0 +1,26 @@
+cache:
+  paths:
+    - node_modules
+
+hello:
+  stage: .pre
+  script:
+    - echo Hello Night of Chances 2023
+
+install:
+  stage: build
+  image: node:18-alpine
+  script:
+    - npm set strict-ssl false
+    - npm ci
+
+test:
+  stage: test
+  image: node:18-alpine
+  script:
+    - npm run test
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - junit.xml
